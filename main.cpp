@@ -8,7 +8,6 @@
 #include <netdb.h>
 #include <iostream>
 #include "clientHelpers.h"
-#include "ColorDefs.h"
 using namespace std;
 
 int main(int argc, char *argv[]) {
