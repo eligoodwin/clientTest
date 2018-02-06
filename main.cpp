@@ -1,45 +1,86 @@
-#include <iostream>
 #include <stdio.h>
-#include <sys/socket.h>
 #include <stdlib.h>
-#include <netinet/in.h>
+#include <unistd.h>
 #include <string.h>
-
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <iostream>
+#include "clientHelpers.h"
+#include "ColorDefs.h"
 using namespace std;
-int getPortFromArgs(char *argv[], int argc ){
-    if(argc != 2){
-        return -1;
-    }
-    return atoi(argv[1]);
-}
 
 int main(int argc, char *argv[]) {
     //get the number of arguments should only be 2 : cmd and port number
-    cout << "Starting Client..." << endl;
     int port = getPortFromArgs(argv, argc);
     if(port < 5000){
-        cout << "Error with port: either port argument was invalid or not provided" << endl;
-        return -1;
+        error(RED "Error with port: either port argument was invalid or not provided" RESET);
     }
-    cout << "Port number: " << port << endl;
-    cout << "Attempting to init cleint..." << endl;
+    cout << YELLOW << "Welcome to the client program. If you wish to quit while chatting with the server enter: '/quit' into the terminal" << RESET <<endl;
+    string username = getUsername();
+    cout << YELLOW << "...Attempting to init client..." << endl;
+    cout  << "\tPort number: " << port << endl;
+    cout << "\tTarget host: " << argv[1] << RESET << endl;
 
-    //init client
-    struct sockaddr_in address;
-    int sock = 0, valread;
-    struct sockaddr_in server_addr;
-    char buffer[1024] = {0};
-    if((sock - socket(AF_INET, so)))
+    //prepare the connection
+    struct sockaddr_in serverAddress;
+    struct hostent* serverHostInfo;
+    memset((char*)&serverAddress, '\0', sizeof(serverAddress));
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(port);
+    serverHostInfo = gethostbyname(argv[1]);
+    if(!serverHostInfo){
+        error(RED "ERROR: host could not be determined" RESET);
+    }
+    memcpy((char*)&serverAddress.sin_addr.s_addr,
+           (char*)serverHostInfo->h_addr,
+           serverHostInfo->h_length);
 
+    //init socket
+    cout << YELLOW << "\tPreparing the socket" << RESET << endl;
+    int socketFD = socket(AF_INET, SOCK_STREAM, 0);
+    if(socketFD < 0){
+        error(RED"ERROR: socket could not be made. Exiting"RESET);
+    }
+    if(connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0){
+        error(RED"ERROR: Client could not connect to server"RESET);
+    }
+    else{
+        cout << GREEN << "****CONNECTED****" << RESET << endl;
+    }
 
+    //begin chat
+    bool connected = true;
+    while(connected){
+        string stringInput = "";
+        cout << GREEN << "TO: " << RESET;
+        getline(cin, stringInput);
+        if(stringInput != "/quit"){
+            stringInput.insert(0, "> ");
+            stringInput.insert(0, username);
+            sendMessage(stringInput, socketFD);
+            //reset the buffer
+            char buffer[BUFFER_SIZE];
+            memset(buffer, '\0', BUFFER_SIZE * sizeof(char));
+            read(socketFD, buffer, BUFFER_SIZE);
 
+            if(strcmp(buffer, "Server is terminating connection") == 0){
+                cout << CYAN  <<"Server is shutting down" << RESET <<endl;
+                cout << RED << "****DISCONNECTED****" << RESET << endl;
+                connected = false;
+            }
+            else{
+                cout << MAGENTA<< "FROM: " << buffer << RESET << endl;
+            }
+        }
+        else{
+            sendMessage("CLIENT IS QUITTING", socketFD);
+            connected = false;
+        }
+    }
 
-
-
-    char* hello = "hello server! from client";
-
-
-
-
+    close(socketFD);
+    cout << YELLOW << "Program exiting" << RESET<< endl;
     return 0;
 }
