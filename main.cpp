@@ -8,7 +8,13 @@
 #include <netdb.h>
 #include <iostream>
 #include "clientHelpers.h"
+#include <thread>
+
+
 using namespace std;
+bool listening = true;
+
+void makeServer(char address[], int port);
 
 int main(int argc, char *argv[]) {
     //get the number of arguments should only be 2 : cmd and port number
@@ -48,6 +54,8 @@ int main(int argc, char *argv[]) {
     else{
         cout << GREEN << "****CONNECTED****" << RESET << endl;
     }
+    cout << YELLOW << "...Creating listener" << RESET << endl;
+    thread listenerThread(makeServer, serverHostInfo, port);
 
     //begin chat
     bool connected = true;
@@ -76,10 +84,40 @@ int main(int argc, char *argv[]) {
         else{
             sendMessage("CLIENT IS QUITTING", socketFD);
             connected = false;
+            listening = false;
         }
     }
 
     close(socketFD);
     cout << YELLOW << "Program exiting" << RESET<< endl;
     return 0;
+}
+
+void makeServer(char address[], int port){
+    int listenSocketFD, establishedConnectionFD, portNumber;
+    socklen_t  sizeOfClientINfo;
+    char* received = "RECEIVED";
+    struct sockaddr_in serverAddress, clientAddress;
+    memset((char*)&serverAddress, '\0',  sizeof(serverAddress));
+    portNumber = port;
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(portNumber);
+    serverAddress.sin_addr.s_addr = INADDR_ANY;
+
+    listenSocketFD = socket(AF_INET, SOCK_STREAM, 0);
+    if(listenSocketFD < 0)
+        error("ERROR on accept");
+
+    char buffer[500];
+
+    while(listening){
+        memset(buffer, '\0', 500 * sizeof(char));
+        int incoming  = recv(establishedConnectionFD, buffer, 500, 0);
+        if(incoming < 0)
+            error("ERROR: socket is screwy");
+        cout << buffer << endl;
+        send(establishedConnectionFD, received, strlen(received), 0);
+        close(establishedConnectionFD);
+    }
+    close(listenSocketFD);
 }
